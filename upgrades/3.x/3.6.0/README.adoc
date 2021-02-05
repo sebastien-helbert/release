@@ -4,3 +4,24 @@
 
 With Elasticsearch version above 7.x, `geoip` and `user_agent` plugins are automatically enabled.
 
+=== APIM API
+
+Two new configuration keys have been added, they should be set with the URLs of UI App and Management API either:
+
+ - By updating the `gravitee.yml` file:
+```yml
+console:
+  ui:
+    url: gravitee_apim_ui_url # TO UPDATE WITH YOUR OWN URL
+  api:
+    url: gravitee_apim_management_api_url # TO UPDATE WITH YOUR OWN URL
+```
+
+ - By using environment variables:
+
+```shell
+console_ui_url=gravitee_apim_ui_url ←️ TO UPDATE WITH YOUR OWN URL
+console_api_url=gravitee_apim_management_api_url ←️ TO UPDATE WITH YOUR OWN URL
+```
+
+NB: If you are using Cockpit these URLs are requred as they will be used to navigate between Cockpit and APIM.
