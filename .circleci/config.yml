@@ -41,6 +41,8 @@ parameters:
 orbs:
   secrethub: secrethub/cli@1.0.0
   gravitee: gravitee-io/gravitee@dev:1.0.4
+  slack: circleci/slack@4.4.0
+
 jobs:
   empty_job:
     docker:
@@ -51,6 +53,88 @@ jobs:
       - run:
           name: "This is a blank job"
           command: echo "No task is executed."
+
+  bom_to_slack:
+    machine:
+      image: 'ubuntu-1604:201903-01'
+    environment:
+      GITHUB_ORG: ${GITHUB_ORG}
+      SECRETHUB_ORG: graviteeio
+      SECRETHUB_REPO: cicd
+      SLACK_ACCESS_TOKEN: $SLACK_ACCESS_TOKEN
+    steps:
+      - checkout
+      - secrethub/install
+      - gravitee/nexus_staging_prepare_bucket:
+          dry_run: true
+          maven_container_image_tag: stable-latest
+          maven_profile_id: gio-release
+          secrethub_org: graviteeio
+          secrethub_repo: cicd
+
+      - run:
+          name: "Docker pull"
+          command: |
+                    docker pull quay.io/gravitee-lab/cicd-orchestrator:stable-latest
+      - run:
+          name: "Running the Gio CICD Orchestrator as docker container"
+          command: |
+                    echo "Checking pipeline env. : "
+                    ls -allh
+                    export GITHUB_ORG=gravitee-io
+                    export SECRETHUB_ORG=graviteeio
+                    export SECRETHUB_REPO=cicd
+                    export MAVEN_PROFILE_ID='gio-release'
+                    echo "GITHUB_ORG=${GITHUB_ORG}"
+                    echo "SECRETHUB_ORG=${SECRETHUB_ORG}"
+                    echo "SECRETHUB_REPO=${SECRETHUB_REPO}"
+                    echo "MAVEN_PROFILE_ID=${MAVEN_PROFILE_ID}"
+                    # checking docker image pulled in previous step is tHere
+                    docker images
+                    # --> .secrets.json is used by Gravitee CI CD Orchestrator to authenticate to Circle CI
+                    CCI_SECRET_FILE=$PWD/.secrets.json
+                    secrethub read --out-file ${CCI_SECRET_FILE} ${SECRETHUB_ORG}/${SECRETHUB_REPO}/graviteebot/circleci/api/.secret.json
+                    secrethub read ${SECRETHUB_ORG}/${SECRETHUB_REPO}/graviteebot/circleci/secrethub-svc-account/token > ./.secrethub.credential
+                    ls -allh ${CCI_SECRET_FILE}
+                    # Docker volumes to map pipeline checked out git tree, .env file and .secrets.json files inside the docker container
+                    # export DOCKER_VOLUMES="-v $PWD:/graviteeio/cicd/pipeline -v $PWD/.env:/graviteeio/cicd/.env -v $PWD/.secrets.json:/graviteeio/cicd/.secrets.json"
+                    export DOCKER_VOLUMES="-v $PWD:/graviteeio/cicd/pipeline -v $PWD/.secrets.json:/graviteeio/cicd/.secrets.json -v $PWD/.secrethub.credential:/graviteeio/cicd/.secrethub.credential"
+                    export ENV_VARS="--env GH_ORG=${GITHUB_ORG} --env SECRETHUB_ORG=${SECRETHUB_ORG} --env SECRETHUB_REPO=${SECRETHUB_REPO} --env MAVEN_PROFILE_ID=${MAVEN_PROFILE_ID} --env CIRCLE_BUILD_URL=${CIRCLE_BUILD_URL}"
+                    docker run --name orchestrator ${ENV_VARS} ${DOCKER_VOLUMES} --restart no -it quay.io/gravitee-lab/cicd-orchestrator:stable-latest -s bom --dry-run
+                    exit "$?"
+      - run:
+          name: "Check Release B.O.M. To Publish to Slack (Release Execution Plan, built from Release.json)"
+          command: |
+                    echo "Here is the generated Release BOM File (Release Execution Plan, built from Release.json)"
+                    cat ./.circleci/release.bom
+      - run:
+          name: "Set Release B.O.M. SLACK RAW TEMPLATE in Env To Publish to Slack (Release Execution Plan, built from Release.json)"
+          command: |
+                    echo '# The [GRAVITEE_BOM_SLACK_TEMPLATE] will be available in the next step (the Slack Orb Command)'
+                    echo 'export GRAVITEE_BOM_SLACK_TEMPLATE=$(cat ./.circleci/release.bom.slack)' >> $BASH_ENV
+      - run:
+          name: "Check Release B.O.M. SLACK TEMPLATE To Publish to Slack (Release Execution Plan, built from Release.json)"
+          command: |
+                    echo ''
+                    echo "Here is the raw generated Release BOM File (Release Execution Plan, built from Release.json) : "
+                    echo ''
+                    echo $GRAVITEE_BOM_SLACK_TEMPLATE
+                    echo ''
+                    echo "Here is the beautfied generated Release BOM File (Release Execution Plan, built from Release.json)"
+                    echo ''
+                    cat ./.circleci/release.bom.slack.beautified
+                    echo ''
+                    echo "  Copy the above JSON, ans Go and Check how this Slack Template "
+                    echo "  renders in Slack, at https://app.slack.com/block-kit-builder/"
+                    echo ''
+      - slack/notify:
+          event: pass
+          template: GRAVITEE_BOM_SLACK_TEMPLATE
+          channel: support
+      - run:
+          name: "Tear down the Release B.O.M. File Published to Slack (Release Execution Plan, built from Release.json)"
+          command: |
+                    rm ./.circleci/release.bom
 
   dry_run_orchestrator:
     machine:
@@ -86,7 +170,7 @@ jobs:
                     echo "SECRETHUB_ORG=${SECRETHUB_ORG}"
                     echo "SECRETHUB_REPO=${SECRETHUB_REPO}"
                     echo "MAVEN_PROFILE_ID=${MAVEN_PROFILE_ID}"
-                    # checking docker image pulled in previous step is there
+                    # checking docker image pulled in previous step is tHere
                     docker images
                     # --> .secrets.json is used by Gravitee CI CD Orchestrator to authenticate to Circle CI
                     CCI_SECRET_FILE=$PWD/.secrets.json
@@ -133,7 +217,7 @@ jobs:
                     echo "SECRETHUB_ORG=${SECRETHUB_ORG}"
                     echo "SECRETHUB_REPO=${SECRETHUB_REPO}"
                     echo "MAVEN_PROFILE_ID=${MAVEN_PROFILE_ID}"
-                    # checking docker image pulled in previous step is there
+                    # checking docker image pulled in previous step is tHere
                     docker images
                     # --> .secrets.json is used by Gravitee CI CD Orchestrator to authenticate to Circle CI
                     CCI_SECRET_FILE=$PWD/.secrets.json
@@ -181,7 +265,7 @@ jobs:
                     echo "SECRETHUB_ORG=${SECRETHUB_ORG}"
                     echo "SECRETHUB_REPO=${SECRETHUB_REPO}"
                     echo "MAVEN_PROFILE_ID=${MAVEN_PROFILE_ID}"
-                    # checking docker image pulled in previous step is there
+                    # checking docker image pulled in previous step is tHere
                     docker images
                     # --> .secrets.json is used by Gravitee CI CD Orchestrator to authenticate to Circle CI
                     CCI_SECRET_FILE=$PWD/.secrets.json
@@ -319,8 +403,22 @@ workflows:
     when:
       equal: [ dry_release, << pipeline.parameters.gio_action >> ]
     jobs:
+      - bom_to_slack:
+          context: cicd-orchestrator
+          filters:
+            branches:
+              only:
+                - /^[0-9]+.[0-9]+.x/ # e.g. 4.5.x
+                - /^[0-9]+.[0-9]+.[0-9]+-beta/ # e.g. 3.0.0-beta
+                - master
+      - bom_to_slack_approval:
+          type: approval
+          requires:
+            - bom_to_slack
       - dry_run_orchestrator:
           context: cicd-orchestrator
+          requires:
+            - bom_to_slack_approval
           filters:
             branches:
               only:
@@ -331,8 +429,22 @@ workflows:
     when:
       equal: [ release, << pipeline.parameters.gio_action >> ]
     jobs:
+      - bom_to_slack:
+          context: cicd-orchestrator
+          filters:
+            branches:
+              only:
+                - /^[0-9]+.[0-9]+.x/ # e.g. 4.5.x
+                - /^[0-9]+.[0-9]+.[0-9]+-beta/ # e.g. 3.0.0-beta
+                - master
+      - bom_to_slack_approval:
+          type: approval
+          requires:
+            - bom_to_slack
       - run_orchestrator:
           context: cicd-orchestrator
+          requires:
+            - bom_to_slack_approval
           filters:
             branches:
               only:
