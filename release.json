@@ -180,17 +180,17 @@
         },
         {
             "name": "gravitee-repository",
-            "version": "3.8.0",
+            "version": "3.9.0-SNAPSHOT",
             "since": "3.8.0"
         },
         {
             "name": "gravitee-repository-test",
-            "version": "3.8.0",
+            "version": "3.9.0-SNAPSHOT",
             "since": "3.8.0"
         },
         {
             "name": "gravitee-repository-mongodb",
-            "version": "3.8.0",
+            "version": "3.9.0-SNAPSHOT",
             "since": "3.8.0"
         },
         {
@@ -203,7 +203,7 @@
         },
         {
             "name": "gravitee-repository-jdbc",
-            "version": "3.8.0",
+            "version": "3.9.0-SNAPSHOT",
             "since": "3.8.0"
         },
         {
